@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  pkg-config,
   ...
 }:
 
@@ -14,7 +13,7 @@ let
     src = pkgs.lib.cleanSource ./.;
     cargoLock.lockFile = ./Cargo.lock;
 
-    nativeBuildInputs = [ pkg-config ];
+    nativeBuildInputs = with pkgs; [ pkg-config ];
     buildInputs = with pkgs; [ openssl ];
   };
   cfg = config.services.ics-proxy;
