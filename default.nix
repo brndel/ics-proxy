@@ -61,7 +61,7 @@ in
         User = "ics-proxy";
         Group = "ics-proxy";
         WorkingDirectory = "/var/lib/ics-proxy";
-        ExecStart = "${binary}";
+        ExecStart = "${binary}/bin/ics-proxy";
 
         RestartSec = 5;
         Restart = "always";
