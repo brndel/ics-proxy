@@ -1,7 +1,7 @@
 mod actions;
 mod config_file;
 
-use std::{borrow::Cow, fs::File, io::BufReader, string::FromUtf8Error};
+use std::{borrow::Cow, env, fs::File, io::BufReader, string::FromUtf8Error};
 
 use axum::{Router, extract::Path, response::IntoResponse, routing::get};
 use calcard::icalendar::ICalendar;
@@ -16,9 +16,18 @@ use crate::{
 async fn main() {
     let router = Router::new().route("/{id}", get(handle_request));
 
-    let port = 9187;
+    let port = match env::var("PORT") {
+        Ok(port) => port.parse::<u16>().unwrap(),
+        Err(_) => 9187,
+    };
 
-    let listener = tokio::net::TcpListener::bind(format!("localhost:{}", port))
+
+    let host = match env::var("HOST") {
+        Ok(host) => host,
+        Err(_) => "127.0.0.1".to_string(),
+    };
+
+    let listener = tokio::net::TcpListener::bind((host, port))
         .await
         .unwrap();
 

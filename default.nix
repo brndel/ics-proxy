@@ -44,7 +44,7 @@ in
 
       environment = {
         HOST = cfg.host;
-        PORT = cfg.port;
+        PORT = toString cfg.port;
       };
 
       serviceConfig = {
