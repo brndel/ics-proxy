@@ -15,11 +15,11 @@
       self,
       nixpkgs,
       rust-overlay,
-      lib,
       ...
     }:
     {
-      module =
+      nixosModules.default =
+        { config, lib, ... }:
         let
           pkgs = import <nixpkgs> {
             overlays = [
@@ -28,7 +28,7 @@
           };
         in
         import ./. {
-          inherit pkgs lib;
+          inherit pkgs lib config;
         };
     };
 }
