@@ -21,7 +21,7 @@
       nixosModules.default =
         { config, lib, ... }:
         let
-          pkgs = import <nixpkgs> {
+          pkgs = import nixpkgs {
             overlays = [
               rust-overlay.overlays.default
             ];
