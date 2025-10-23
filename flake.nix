@@ -18,12 +18,17 @@
       ...
     }:
     {
-      pkgs = import <nixpkgs> {
-        overlays = [
-          rust-overlay.overlays.default
-        ];
-      };
 
-      module = import ./.;
+      module =
+        let
+          pkgs = import <nixpkgs> {
+            overlays = [
+              rust-overlay.overlays.default
+            ];
+          };
+        in
+        import ./. {
+          inherit pkgs;
+        };
     };
 }
