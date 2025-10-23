@@ -6,7 +6,12 @@
 }:
 
 let
-  binary = pkgs.rustPlatform.buildRustPackage {
+  rust = pkgs.rust-bin."1.89.0".default;
+  rustPlatform = pkgs.makeRustPlatform {
+    cargo = rust;
+    rustc = rust;
+  };
+  binary = rustPlatform.buildRustPackage {
     pname = "ics-proxy";
     version = "0.1.0";
 
