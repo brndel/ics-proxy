@@ -12,6 +12,8 @@ let
 
     src = pkgs.lib.cleanSource ./.;
     cargoLock.lockFile = ./Cargo.lock;
+
+    buildInputs = with pkgs; [ openssl ];
   };
   cfg = config.services.ics-proxy;
 in
