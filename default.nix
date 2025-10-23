@@ -42,6 +42,8 @@ in
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
+      path = with pkgs; [ openssl ];
+
       environment = {
         HOST = cfg.host;
         PORT = toString cfg.port;
