@@ -14,7 +14,6 @@ let
     cargoLock.lockFile = ./Cargo.lock;
   };
   cfg = config.services.ics-proxy;
-  configFile = pkgs.writeText "config" cfg.hello-name;
 in
 {
   options.services.ics-proxy = {
@@ -60,8 +59,5 @@ in
       
       restartIfChanged = true;
     };
-
-    environment.etc."nixos-test/config".source = configFile;
-    environment.systemPackages = [ binary ];
   };
 }
