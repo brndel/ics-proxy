@@ -45,6 +45,10 @@ in
     };
     users.groups.ics-proxy = { };
 
+    systemd.tmpfiles.rules = [
+      "d /var/lib/ics-proxy 0750 ics-proxy ics-proxy -"
+    ];
+
     systemd.services.ics-proxy = {
       description = "Ics Proxy Server";
       after = [ "network.target" ];
@@ -66,7 +70,7 @@ in
         RestartSec = 5;
         Restart = "always";
       };
-      
+
       restartIfChanged = true;
     };
   };
