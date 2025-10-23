@@ -18,16 +18,12 @@
       ...
     }:
     {
-
-      # packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
-
-      # packages.x86_64-linux.default = self.packages.x86_64-linux.hello;
-
-      nixpkgs.overlays = [
-        rust-overlay.overlays.default
-      ];
+      pkgs = import <nixpkgs> {
+        overlays = [
+          rust-overlay.overlays.default
+        ];
+      };
 
       module = import ./.;
-
     };
 }
