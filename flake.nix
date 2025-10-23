@@ -15,10 +15,10 @@
       self,
       nixpkgs,
       rust-overlay,
+      lib,
       ...
     }:
     {
-
       module =
         let
           pkgs = import <nixpkgs> {
@@ -28,7 +28,7 @@
           };
         in
         import ./. {
-          inherit pkgs;
+          inherit pkgs lib;
         };
     };
 }
