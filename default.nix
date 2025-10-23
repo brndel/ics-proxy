@@ -6,7 +6,7 @@
 }:
 
 let
-  rust = pkgs.rust-bin."1.89.0".default;
+  rust = pkgs.rust-bin.stable."1.89.0".default;
   rustPlatform = pkgs.makeRustPlatform {
     cargo = rust;
     rustc = rust;
