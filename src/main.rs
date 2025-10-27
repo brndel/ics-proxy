@@ -7,10 +7,7 @@ use axum::{Router, extract::Path, response::IntoResponse, routing::get};
 use calcard::icalendar::ICalendar;
 use reqwest::{IntoUrl, StatusCode};
 
-use crate::{
-    actions::CalendarActions,
-    config_file::ConfigFile,
-};
+use crate::{actions::CalendarActions, config_file::ConfigFile};
 
 #[tokio::main]
 async fn main() {
@@ -21,15 +18,12 @@ async fn main() {
         Err(_) => 9187,
     };
 
-
     let host = match env::var("HOST") {
         Ok(host) => host,
         Err(_) => "127.0.0.1".to_string(),
     };
 
-    let listener = tokio::net::TcpListener::bind((host, port))
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind((host, port)).await.unwrap();
 
     println!("listening on port {}", port);
 
@@ -52,6 +46,9 @@ enum Error {
 
     #[error("{0}")]
     Custom(Cow<'static, str>),
+
+    #[error("Invalid char '{0}' in id")]
+    InvalidCharInId(char),
 }
 
 impl IntoResponse for Error {
@@ -61,7 +58,15 @@ impl IntoResponse for Error {
 }
 
 async fn handle_request(Path(id): Path<String>) -> Result<String, Error> {
-    println!("requesting thing for {}", id);
+    
+    // This also blocks suspicious accesses like '../../passwords.txt'
+    if let Some(invalid_char) = id
+        .chars()
+        .filter(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
+        .next()
+    {
+        return Err(Error::InvalidCharInId(invalid_char));
+    }
 
     let file = File::open(format!("calendars/{}.json", id))?;
 
