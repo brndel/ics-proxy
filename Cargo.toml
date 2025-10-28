@@ -12,3 +12,5 @@ thiserror = "2.0.17"
 serde = "1.0"
 serde_json = "1.0"
 # tokio = {version = "*", features = ["macros", "rt"]}
+
+web_frontend.path = "web_frontend"
