@@ -14,9 +14,9 @@ mod tests {
 
     use super::*;
 
-    use calcard::icalendar::{ICalendarProperty, ICalendarValue};
+    use calcard::icalendar::{ICalendarComponentType, ICalendarProperty, ICalendarValue};
 
-    use crate::actions::{Action, CalendarActions, EventFilter, FilterKind, SetAction};
+    use crate::actions::{Action, CalendarActions, EntryFilter, FilterKind, SetAction};
 
     #[test]
     fn test_serde_de() {
@@ -25,6 +25,7 @@ mod tests {
     "url": "https://campus.kit.edu/sp/webcal/...",
     "actions": [
         {
+            "kind": "VEvent",
             "filter": [
                 {
                     "name": "SUMMARY",
@@ -57,7 +58,8 @@ mod tests {
             url: "https://campus.kit.edu/sp/webcal/...".to_string(),
             actions: CalendarActions {
                 actions: vec![Action {
-                    filter: vec![EventFilter {
+                    kind: ICalendarComponentType::VEvent,
+                    filter: vec![EntryFilter {
                         name: ICalendarProperty::Summary,
                         kind: FilterKind::StartsWith {
                             value: "2424079".to_string(),

@@ -7,7 +7,7 @@ use calcard::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct EventFilter {
+pub struct EntryFilter {
     #[serde(serialize_with = "ser_calendar_prop_as_str", deserialize_with = "de_calendar_prop_as_str")]
     pub name: ICalendarProperty,
     #[serde(flatten)]
@@ -32,8 +32,14 @@ pub struct SetAction {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Action {
-    pub filter: Vec<EventFilter>,
+    #[serde(default = "default_action_kind")]
+    pub kind: ICalendarComponentType,
+    pub filter: Vec<EntryFilter>,
     pub set: Vec<SetAction>,
+}
+
+fn default_action_kind() -> ICalendarComponentType {
+    ICalendarComponentType::VEvent
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,7 +52,11 @@ impl CalendarActions {
         let mut changed_anything = false;
 
         for action in &self.actions {
-            let apply_replacements = action.filter.iter().any(|filter| filter.matches(event));
+            if action.kind != event.component_type {
+                continue;
+            }
+
+            let apply_replacements = action.filter.is_empty() || action.filter.iter().any(|filter| filter.matches(event));
 
             if apply_replacements {
                 for replacement in &action.set {
@@ -62,14 +72,12 @@ impl CalendarActions {
 
     pub fn apply_to_events(&self, cal: &mut ICalendar) {
         for event in &mut cal.components {
-            if event.component_type == ICalendarComponentType::VEvent {
-                self.apply(event);
-            }
+            self.apply(event);
         }
     }
 }
 
-impl EventFilter {
+impl EntryFilter {
     pub fn matches(&self, event: &ICalendarComponent) -> bool {
         let Some(entry) = event.property(&self.name) else {
             return false;
