@@ -1,13 +1,18 @@
 mod actions;
 mod config_file;
 
-use std::{borrow::Cow, env, fs::File, io::BufReader, string::FromUtf8Error};
+use std::{
+    borrow::Cow,
+    env,
+    fs::{self},
+    string::FromUtf8Error,
+};
 
 use axum::{Router, extract::Path, response::IntoResponse, routing::get};
 use calcard::icalendar::ICalendar;
-use reqwest::{IntoUrl, StatusCode};
+use reqwest::StatusCode;
 
-use crate::{actions::CalendarActions, config_file::ConfigFile};
+use crate::config_file::ConfigFile;
 
 #[tokio::main]
 async fn main() {
@@ -42,7 +47,7 @@ enum Error {
     Io(#[from] std::io::Error),
 
     #[error("{0}")]
-    Serde(#[from] serde_json::Error),
+    Serde(#[from] toml::de::Error),
 
     #[error("{0}")]
     Custom(Cow<'static, str>),
@@ -58,30 +63,25 @@ impl IntoResponse for Error {
 }
 
 async fn handle_request(Path(id): Path<String>) -> Result<String, Error> {
-    
     // This also blocks suspicious accesses like '../../passwords.txt'
     if let Some(invalid_char) = id
         .chars()
-        .filter(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
-        .next()
+        .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
     {
         return Err(Error::InvalidCharInId(invalid_char));
     }
 
-    let file = File::open(format!("calendars/{}.json", id))?;
+    let file_content = fs::read_to_string(format!("calendars/{}.toml", id))?;
 
-    let config_file: ConfigFile = serde_json::from_reader(BufReader::new(file))?;
+    let config_file: ConfigFile = toml::from_str(&file_content)?;
 
-    let cal = fetch_ics_and_apply_actions(&config_file.url, &config_file.actions).await?;
+    let cal = fetch_ics_and_apply_actions(&config_file).await?;
 
     Ok(cal.to_string())
 }
 
-async fn fetch_ics_and_apply_actions(
-    url: impl IntoUrl,
-    ruleset: &CalendarActions,
-) -> Result<ICalendar, Error> {
-    let result = reqwest::get(url).await?;
+async fn fetch_ics_and_apply_actions(config: &ConfigFile) -> Result<ICalendar, Error> {
+    let result = reqwest::get(&config.url).await?;
     let bytes = result.bytes().await?;
     let ical_file = String::from_utf8(bytes.to_vec())?;
 
@@ -89,7 +89,7 @@ async fn fetch_ics_and_apply_actions(
         Error::Custom(format!("error while parsing ics file in entry {:?}", entry).into())
     })?;
 
-    ruleset.apply_to_events(&mut cal);
+    config.apply(&mut cal);
 
     Ok(cal)
 }

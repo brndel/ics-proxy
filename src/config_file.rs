@@ -1,80 +1,59 @@
-use serde::{Deserialize, Serialize};
+use calcard::icalendar::{ICalendar, ICalendarComponentType};
+use serde::Deserialize;
 
-use crate::actions::CalendarActions;
+use crate::actions::{CalendarActions, EventEntry};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ConfigFile {
     pub url: String,
-    #[serde(flatten)]
-    pub actions: CalendarActions,
+    #[serde(rename = "event", default)]
+    pub events: Vec<EventEntry>,
+    #[serde(default)]
+    pub calendar: CalendarActions,
+}
+
+impl ConfigFile {
+    pub fn apply(&self, calendar: &mut ICalendar) {
+        for component in &mut calendar.components {
+            match component.component_type {
+                ICalendarComponentType::VCalendar => {
+                    self.calendar.apply(component);
+                }
+                ICalendarComponentType::VEvent => {
+                    for event in &self.events {
+                        event.apply(component);
+                    }
+                },
+                _ => (),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-
-    use calcard::icalendar::{ICalendarComponentType, ICalendarProperty, ICalendarValue};
-
-    use crate::actions::{Action, CalendarActions, EntryFilter, FilterKind, SetAction};
 
     #[test]
     fn test_serde_de() {
         let input = r##"
-{
-    "url": "https://campus.kit.edu/sp/webcal/...",
-    "actions": [
-        {
-            "kind": "VEvent",
-            "filter": [
-                {
-                    "name": "SUMMARY",
-                    "kind": "starts_with",
-                    "value": "2424079"
-                }
-            ],
-            "set": [
-                {
-                    "name": "SUMMARY",
-                    "value": {
-                        "type": "Text",
-                        "data": "Algo 2"
-                    }
-                }
-            ]
-        }
-    ]
-}
+url = "https://campus.kit.edu/sp/webcal/..."
+
+[[event]]
+filter.summary.starts_with = "42679"
+action.summary.set = "SWT 2"
+
+[[event]]
+filter.summary.starts_with = "2424638"
+action.summary.set = "Routen Algo"
+
+[[event]]
+filter.summary.starts_with = "24679"
+action.summary.set = "Inter CGI"
         "##;
 
-        let file: ConfigFile = serde_json::from_str(input).unwrap();
+        let file: ConfigFile = toml::from_str(input).unwrap();
 
         println!("{:?}", file);
-    }
-
-    #[test]
-    fn test_serde_ser() {
-        let file = ConfigFile {
-            url: "https://campus.kit.edu/sp/webcal/...".to_string(),
-            actions: CalendarActions {
-                actions: vec![Action {
-                    kind: ICalendarComponentType::VEvent,
-                    filter: vec![EntryFilter {
-                        name: ICalendarProperty::Summary,
-                        kind: FilterKind::StartsWith {
-                            value: "2424079".to_string(),
-                        },
-                    }],
-                    set: vec![SetAction {
-                        name: ICalendarProperty::Summary,
-                        value: ICalendarValue::Text("Algo 2".to_string()),
-                    }],
-                }],
-            },
-        };
-
-        let string = serde_json::to_string_pretty(&file).unwrap();
-
-        println!("{}", string);
     }
 }

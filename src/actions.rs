@@ -1,129 +1,130 @@
-use calcard::{
-    common::IanaParse,
-    icalendar::{
-        ICalendar, ICalendarComponent, ICalendarComponentType, ICalendarProperty, ICalendarValue,
-    },
-};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct EntryFilter {
-    #[serde(serialize_with = "ser_calendar_prop_as_str", deserialize_with = "de_calendar_prop_as_str")]
-    pub name: ICalendarProperty,
-    #[serde(flatten)]
-    pub kind: FilterKind,
+use calcard::icalendar::{ICalendarComponent, ICalendarProperty, ICalendarValue};
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug)]
+pub struct EventEntry {
+    #[serde(rename = "filter", default)]
+    filters: HashMap<EventProperty, EventFilter>,
+    #[serde(rename = "action", default)]
+    actions: HashMap<EventProperty, EventAction>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "kind")]
+#[derive(Deserialize, Debug, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
-pub enum FilterKind {
-    Equals { value: ICalendarValue },
-    StartsWith { value: String },
-    Contains { value: String },
+pub enum EventProperty {
+    Summary,
+    Location,
+    Description,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SetAction {
-    #[serde(serialize_with = "ser_calendar_prop_as_str", deserialize_with = "de_calendar_prop_as_str")]
-    pub name: ICalendarProperty,
-    pub value: ICalendarValue,
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum EventFilter {
+    Equals(String),
+    StartsWith(String),
+    Contains(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Action {
-    #[serde(default = "default_action_kind")]
-    pub kind: ICalendarComponentType,
-    pub filter: Vec<EntryFilter>,
-    pub set: Vec<SetAction>,
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum EventAction {
+    Set(String),
 }
 
-fn default_action_kind() -> ICalendarComponentType {
-    ICalendarComponentType::VEvent
+impl EventEntry {
+    pub fn apply(&self, event: &mut ICalendarComponent) {
+        let passes_filter = self
+            .filters
+            .iter()
+            .any(|(property, filter)| filter.matches(property, event));
+
+        if passes_filter {
+            for (property, action) in &self.actions {
+                action.apply(property, event);
+            }
+        }
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+impl EventProperty {
+    pub fn ical_property(&self) -> ICalendarProperty {
+        match self {
+            EventProperty::Summary => ICalendarProperty::Summary,
+            EventProperty::Location => ICalendarProperty::Location,
+            EventProperty::Description => ICalendarProperty::Description,
+        }
+    }
+}
+
+impl EventFilter {
+    pub fn matches(&self, property: &EventProperty, event: &ICalendarComponent) -> bool {
+        let Some(entry) = event.property(&property.ical_property()) else {
+            println!("event {:?} does not have prop {:?}", event.uid(), property);
+            return false;
+        };
+
+        let Some(ICalendarValue::Text(event_value)) = entry.values.first() else {
+            println!("prop {:?} is not of type text", property);
+            return false;
+        };
+
+        match &self {
+            EventFilter::Equals(value) => event_value == value,
+            EventFilter::StartsWith(value) => event_value.starts_with(value),
+            EventFilter::Contains(value) => event_value.contains(value),
+        }
+    }
+}
+
+impl EventAction {
+    pub fn apply(&self, property: &EventProperty, event: &mut ICalendarComponent) {
+        match self {
+            EventAction::Set(value) => {
+                set_or_add_property(
+                    event,
+                    &property.ical_property(),
+                    ICalendarValue::Text(value.clone()),
+                );
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
 pub struct CalendarActions {
-    pub actions: Vec<Action>,
+    prodid: Option<String>,
+    url: Option<String>,
 }
 
 impl CalendarActions {
-    pub fn apply(&self, event: &mut ICalendarComponent) -> bool {
-        let mut changed_anything = false;
-
-        for action in &self.actions {
-            if action.kind != event.component_type {
-                continue;
-            }
-
-            let apply_replacements = action.filter.is_empty() || action.filter.iter().any(|filter| filter.matches(event));
-
-            if apply_replacements {
-                for replacement in &action.set {
-                    replacement.apply(event);
-                }
-
-                changed_anything = true;
-            }
+    pub fn apply(&self, calendar: &mut ICalendarComponent) {
+        if let Some(prodid) = &self.prodid {
+            set_or_add_property(
+                calendar,
+                &ICalendarProperty::Prodid,
+                ICalendarValue::Text(prodid.clone()),
+            );
         }
-
-        return changed_anything;
-    }
-
-    pub fn apply_to_events(&self, cal: &mut ICalendar) {
-        for event in &mut cal.components {
-            self.apply(event);
+        if let Some(url) = &self.url {
+            set_or_add_property(
+                calendar,
+                &ICalendarProperty::Url,
+                ICalendarValue::Text(url.clone()),
+            );
         }
-    }
-}
-
-impl EntryFilter {
-    pub fn matches(&self, event: &ICalendarComponent) -> bool {
-        let Some(entry) = event.property(&self.name) else {
-            return false;
-        };
-
-        let Some(event_value) = entry.values.first() else {
-            return false;
-        };
-
-        match &self.kind {
-            FilterKind::Equals { value } => event_value == value,
-            FilterKind::StartsWith { value } => event_value
-                .as_text()
-                .is_some_and(|event_value| event_value.starts_with(value)),
-            FilterKind::Contains { value } => event_value
-                .as_text()
-                .is_some_and(|event_value| event_value.contains(value)),
-        }
-    }
-}
-
-impl SetAction {
-    pub fn apply(&self, event: &mut ICalendarComponent) {
-        set_or_add_property(event, &self.name, self.value.clone());
     }
 }
 
 fn set_or_add_property(
-    event: &mut ICalendarComponent,
-    name: &ICalendarProperty,
+    component: &mut ICalendarComponent,
+    property: &ICalendarProperty,
     value: ICalendarValue,
 ) {
-    if let Some(param) = event.property_mut(name) {
+    if let Some(param) = component.property_mut(property) {
         param.values = vec![value];
     } else {
-        event.add_property(name.clone(), value);
+        component.add_property(property.clone(), value);
     }
-}
-
-fn ser_calendar_prop_as_str<S: Serializer>(value: &ICalendarProperty, ser: S) -> Result<S::Ok, S::Error> {
-    ser.serialize_str(value.as_str())
-}
-
-fn de_calendar_prop_as_str<'de, D: Deserializer<'de>>(de: D) -> Result<ICalendarProperty, D::Error> {
-    let value = String::deserialize(de)?;
-
-    ICalendarProperty::parse(value.as_bytes())
-        .ok_or_else(|| <D::Error as serde::de::Error>::custom("foo"))
 }
